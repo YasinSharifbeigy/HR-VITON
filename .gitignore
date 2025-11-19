@@ -1,6 +1,5 @@
 # Ignore dataset
-data/*
-!data/.gitkeep
+data/
 
 # Ignore model weights
 eval_models/weights/v0.1/
