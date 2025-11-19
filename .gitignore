@@ -1,8 +1,11 @@
 # Ignore dataset
-data/
+data/*
 
 # Ignore model weights
 eval_models/weights/v0.1/
 
-#ignore outputs
+#Ignore outputs
 output/
+
+#Ignore Python cache
+__pycache__/
