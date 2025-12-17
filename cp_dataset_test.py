@@ -231,7 +231,8 @@ class CPDatasetTest(data.Dataset):
             'parse_cloth': im_c,    # VGG Loss & vis
             # visualization
             'image':    im,         # for visualization
-            'agnostic' : agnostic
+            'agnostic' : agnostic, 
+            # 'pose_data': pose_data
             }
         
         return result
