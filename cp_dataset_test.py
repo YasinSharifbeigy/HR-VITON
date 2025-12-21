@@ -44,7 +44,8 @@ class CPDatasetTest(data.Dataset):
 
     def name(self):
         return "CPDataset"
-    def get_agnostic(self, im, im_parse, pose_data):
+    
+    def get_agnostic_orig(self, im, im_parse, pose_data):
         parse_array = np.array(im_parse)
         parse_head = ((parse_array == 4).astype(np.float32) +
                       (parse_array == 13).astype(np.float32))
@@ -112,6 +113,100 @@ class CPDatasetTest(data.Dataset):
         agnostic.paste(im, None, Image.fromarray(np.uint8(parse_head * 255), 'L'))
         agnostic.paste(im, None, Image.fromarray(np.uint8(parse_lower * 255), 'L'))
         return agnostic
+    
+    def get_agnostic(self, im, im_parse, pose_data):
+        parse_array = np.array(im_parse)
+
+        parse_head = ((parse_array == 4).astype(np.float32) +
+                    (parse_array == 13).astype(np.float32))
+
+        parse_lower = ((parse_array == 9).astype(np.float32) +
+                    (parse_array == 12).astype(np.float32) +
+                    (parse_array == 16).astype(np.float32) +
+                    (parse_array == 17).astype(np.float32) +
+                    (parse_array == 18).astype(np.float32) +
+                    (parse_array == 19).astype(np.float32) +
+                    (parse_array == 10).astype(np.float32))
+
+        agnostic = im.copy()
+        agnostic_draw = ImageDraw.Draw(agnostic)
+
+        # --- NEW: binary mask canvas ---
+        agnostic_mask = Image.new("L", im.size, 0)
+        mask_draw = ImageDraw.Draw(agnostic_mask)
+
+        length_a = np.linalg.norm(pose_data[5] - pose_data[2])
+        length_b = np.linalg.norm(pose_data[11] - pose_data[8])
+        point = (pose_data[8] + pose_data[11]) / 2
+
+        pose_data[8] = point + (pose_data[8] - point) / length_b * length_a
+        pose_data[11] = point + (pose_data[11] - point) / length_b * length_a
+
+        r = int(length_a / 16) + 1
+
+        def draw(draw_obj, color):
+            # torso
+            for i in [8, 11]:
+                x, y = pose_data[i]
+                draw_obj.ellipse((x-r*3, y-r*6, x+r*3, y+r*6), color)
+
+            draw_obj.line([tuple(pose_data[i]) for i in [2, 8]], color, width=r*6)
+            draw_obj.line([tuple(pose_data[i]) for i in [5, 11]], color, width=r*6)
+            draw_obj.line([tuple(pose_data[i]) for i in [8, 11]], color, width=r*12)
+            draw_obj.polygon([tuple(pose_data[i]) for i in [2, 5, 11, 8]], color)
+
+            # neck
+            x, y = pose_data[1]
+            draw_obj.rectangle((x-r*5, y-r*9, x+r*5, y), color)
+
+            # arms
+            draw_obj.line([tuple(pose_data[i]) for i in [2, 5]], color, width=r*12)
+            for i in [2, 5]:
+                x, y = pose_data[i]
+                draw_obj.ellipse((x-r*5, y-r*6, x+r*5, y+r*6), color)
+
+            for i in [3, 4, 6, 7]:
+                if np.all(pose_data[i-1] == 0) or np.all(pose_data[i] == 0):
+                    continue
+                draw_obj.line([tuple(pose_data[j]) for j in [i-1, i]], color, width=r*10)
+                x, y = pose_data[i]
+                draw_obj.ellipse((x-r*5, y-r*5, x+r*5, y+r*5), color)
+
+        # draw gray region + mask
+        draw(agnostic_draw, "gray")
+        draw(mask_draw, 255)
+
+        # restore arms, head, lower body
+        for parse_id, pose_ids in [(14, [5, 6, 7]), (15, [2, 3, 4])]:
+            mask_arm = Image.new("L", im.size, 0)
+            d = ImageDraw.Draw(mask_arm)
+
+            x, y = pose_data[pose_ids[0]]
+            d.ellipse((x-r*5, y-r*6, x+r*5, y+r*6), 255)
+
+            for i in pose_ids[1:]:
+                if np.all(pose_data[i-1] == 0) or np.all(pose_data[i] == 0):
+                    continue
+                d.line([tuple(pose_data[j]) for j in [i-1, i]], 255, width=r*10)
+                x, y = pose_data[i]
+                d.ellipse((x-r*5, y-r*5, x+r*5, y+r*5), 255)
+
+            parse_arm = (np.array(mask_arm) / 255) * (parse_array == parse_id)
+            agnostic.paste(im, None, Image.fromarray(np.uint8(parse_arm * 255)))
+            mask_draw.bitmap((0, 0), Image.fromarray(np.uint8(parse_arm * 255)), fill=0)
+
+        # restore head & lower body
+        for restore in [parse_head, parse_lower]:
+            restore_mask = Image.fromarray(np.uint8(restore * 255), "L")
+            agnostic.paste(im, None, restore_mask)
+            mask_draw.bitmap((0, 0), restore_mask, fill=0)
+
+        # --- final binary mask ---
+        binary_mask = (np.array(agnostic_mask) > 0).astype(np.uint8)
+
+        return agnostic, binary_mask
+
+    
     def __getitem__(self, index):
         im_name = self.im_names[index]
         c_name = {}
