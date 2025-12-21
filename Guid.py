@@ -1,0 +1,109 @@
+ATR = {0: 'Background', 
+       1: 'Hat', 
+       2: 'Hair', 
+       4: 'Sunglasses', 
+       5: 'Upper-clothes', 
+       6: 'Skirt', 
+       7: 'Pants', 
+       8: 'Dress', 
+       9: 'Belt', 
+       10: 'Left-shoe', 
+       11: 'Right-shoe', 
+       12: 'Face', 
+       13: 'Left-leg', 
+       14: 'Right-leg', 
+       15: 'Left-arm', 
+       16: 'Right-arm', 
+       17: 'Bag', 
+       18: 'Scarf'}
+
+LIP = {0: 'Background', 
+       1: 'Hat', 
+       2: 'Hair', 
+       3: 'Glove', 
+       4: 'Sunglasses', 
+       5: 'Upper-clothes', 
+       6: 'Dress', 
+       7: 'Coat', 
+       8: 'Socks', 
+       9: 'Pants', 
+       10: 'Jumpsuits', 
+       11: 'Scarf', 
+       12: 'Skirt', 
+       13: 'Face', 
+       14: 'Left-arm', 
+       15: 'Right-arm', 
+       16: 'Left-leg', 
+       17: 'Right-leg', 
+       18: 'Left-shoe', 
+       19: 'Right-shoe'}
+
+CIHP = ['0: BG', 
+        '1: Hat', 
+        '2: Hair', 
+        '3: Glove', 
+        '4: Sunglasses', 
+        '5: UpperClothes', 
+        '6: Dress', 
+        '7: Coat', 
+        '8: Socks', 
+        '9: Pants',
+        '10: Torso-skin', 
+        '11: Scarf', 
+        '12: Skirt', 
+        '13: Face', 
+        '14: Left-arm', 
+        '15: Right-arm', 
+        '16: Left-leg', 
+        '17: Right-leg', 
+        '18: Left-shoe',
+        '19: Right-shoe']
+
+Openpose_orig ="""
+0	Nose
+1	Neck
+2	R-Shoulder
+3	R-Elbow
+4	R-Wrist
+5	L-Shoulder
+6	L-Elbow
+7	L-Wrist
+8	Mid-Hip
+9	R-Hip
+10	R-Knee
+11	R-Ankle
+12	L-Hip
+13	L-Knee
+14	L-Ankle
+15	R-Eye
+16	L-Eye
+17	R-Ear
+18	L-Ear
+19	L-BigToe
+20	L-SmallToe
+21	L-Heel
+22	R-BigToe
+23	R-SmallToe
+24	R-Heel
+"""
+
+openpose_coco = {
+    0:  "nose",
+    1:  "neck",
+    2:  "right_shoulder",
+    3:  "right_elbow",
+    4:  "right_wrist",
+    5:  "left_shoulder",
+    6:  "left_elbow",
+    7:  "left_wrist",
+    8:  "right_hip",
+    9:  "right_knee",
+    10: "right_ankle",
+    11: "left_hip",
+    12: "left_knee",
+    13: "left_ankle",
+    14: "right_eye",
+    15: "left_eye",
+    16: "right_ear",
+    17: "left_ear",
+}

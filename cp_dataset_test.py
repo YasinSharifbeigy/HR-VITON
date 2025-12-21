@@ -142,12 +142,28 @@ class CPDatasetTest(data.Dataset):
         parse = torch.from_numpy(np.array(im_parse_pil)[None]).long()
         im_parse = self.transform(im_parse_pil.convert('RGB'))
         
-        labels = {
+        labels_CIHP = {
             0:  ['background',  [0, 10]],
             1:  ['hair',        [1, 2]],
             2:  ['face',        [4, 13]],
             3:  ['upper',       [5, 6, 7]],
             4:  ['bottom',      [9, 12]],
+            5:  ['left_arm',    [14]],
+            6:  ['right_arm',   [15]],
+            7:  ['left_leg',    [16]],
+            8:  ['right_leg',   [17]],
+            9:  ['left_shoe',   [18]],
+            10: ['right_shoe',  [19]],
+            11: ['socks',       [8]],
+            12: ['noise',       [3, 11]]
+        }
+
+        labels = {
+            0:  ['background',  [0]],
+            1:  ['hair',        [1, 2]],
+            2:  ['face',        [4, 13]],
+            3:  ['upper',       [5, 6, 7]],
+            4:  ['bottom',      [9, 12, 10]],
             5:  ['left_arm',    [14]],
             6:  ['right_arm',   [15]],
             7:  ['left_leg',    [16]],
@@ -183,6 +199,11 @@ class CPDatasetTest(data.Dataset):
         for i in range(len(labels)):
             for label in labels[i][1]:
                 new_parse_agnostic_map[i] += parse_agnostic_map[label]
+
+        parse_ag_onehot = torch.FloatTensor(1, self.fine_height, self.fine_width).zero_()
+        for i in range(len(labels)):
+            for label in labels[i][1]:
+                parse_ag_onehot[0] += parse_agnostic_map[label] * i
                 
 
         # parse cloth & parse cloth mask
@@ -232,7 +253,8 @@ class CPDatasetTest(data.Dataset):
             # visualization
             'image':    im,         # for visualization
             'agnostic' : agnostic, 
-            # 'pose_data': pose_data
+            # 'pose_data': pose_data, 
+            'parse_agnostic_onehot': parse_ag_onehot
             }
         
         return result
