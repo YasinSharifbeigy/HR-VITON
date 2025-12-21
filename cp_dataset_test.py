@@ -53,27 +53,28 @@ class CPDatasetTest(data.Dataset):
                        (parse_array == 16).astype(np.float32) +
                        (parse_array == 17).astype(np.float32) +
                        (parse_array == 18).astype(np.float32) +
-                       (parse_array == 19).astype(np.float32))
+                       (parse_array == 19).astype(np.float32) + 
+                       (parse_array == 10).astype(np.float32))
 
         agnostic = im.copy()
         agnostic_draw = ImageDraw.Draw(agnostic)
 
         length_a = np.linalg.norm(pose_data[5] - pose_data[2])
-        length_b = np.linalg.norm(pose_data[12] - pose_data[9])
-        point = (pose_data[9] + pose_data[12]) / 2
-        pose_data[9] = point + (pose_data[9] - point) / length_b * length_a
-        pose_data[12] = point + (pose_data[12] - point) / length_b * length_a
+        length_b = np.linalg.norm(pose_data[11] - pose_data[8])
+        point = (pose_data[8] + pose_data[11]) / 2
+        pose_data[8] = point + (pose_data[8] - point) / length_b * length_a
+        pose_data[11] = point + (pose_data[11] - point) / length_b * length_a
 
         r = int(length_a / 16) + 1
 
         # mask torso
-        for i in [9, 12]:
+        for i in [8, 11]:
             pointx, pointy = pose_data[i]
             agnostic_draw.ellipse((pointx-r*3, pointy-r*6, pointx+r*3, pointy+r*6), 'gray', 'gray')
-        agnostic_draw.line([tuple(pose_data[i]) for i in [2, 9]], 'gray', width=r*6)
-        agnostic_draw.line([tuple(pose_data[i]) for i in [5, 12]], 'gray', width=r*6)
-        agnostic_draw.line([tuple(pose_data[i]) for i in [9, 12]], 'gray', width=r*12)
-        agnostic_draw.polygon([tuple(pose_data[i]) for i in [2, 5, 12, 9]], 'gray', 'gray')
+        agnostic_draw.line([tuple(pose_data[i]) for i in [2, 8]], 'gray', width=r*6)
+        agnostic_draw.line([tuple(pose_data[i]) for i in [5, 11]], 'gray', width=r*6)
+        agnostic_draw.line([tuple(pose_data[i]) for i in [8, 11]], 'gray', width=r*12)
+        agnostic_draw.polygon([tuple(pose_data[i]) for i in [2, 5, 11, 8]], 'gray', 'gray')
 
         # mask neck
         pointx, pointy = pose_data[1]
