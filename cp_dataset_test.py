@@ -114,7 +114,7 @@ class CPDatasetTest(data.Dataset):
         agnostic.paste(im, None, Image.fromarray(np.uint8(parse_lower * 255), 'L'))
         return agnostic
     
-    def get_agnostic(self, im, im_parse, pose_data):
+    def get_agnostic1(self, im, im_parse, pose_data):
         parse_array = np.array(im_parse)
 
         parse_head = ((parse_array == 4).astype(np.float32) +
@@ -125,8 +125,7 @@ class CPDatasetTest(data.Dataset):
                     (parse_array == 16).astype(np.float32) +
                     (parse_array == 17).astype(np.float32) +
                     (parse_array == 18).astype(np.float32) +
-                    (parse_array == 19).astype(np.float32) +
-                    (parse_array == 10).astype(np.float32))
+                    (parse_array == 19).astype(np.float32))
 
         agnostic = im.copy()
         agnostic_draw = ImageDraw.Draw(agnostic)
@@ -206,6 +205,96 @@ class CPDatasetTest(data.Dataset):
 
         return agnostic, binary_mask
 
+    def get_agnostic(self, im, im_parse, pose_data):
+        parse_array = np.array(im_parse)
+
+        parse_head = ((parse_array == 4).astype(np.float32) +
+                    (parse_array == 13).astype(np.float32))
+
+        parse_lower = ((parse_array == 9).astype(np.float32) +
+                    (parse_array == 12).astype(np.float32) +
+                    (parse_array == 16).astype(np.float32) +
+                    (parse_array == 17).astype(np.float32) +
+                    (parse_array == 18).astype(np.float32) +
+                    (parse_array == 19).astype(np.float32))
+
+        agnostic = im.copy()
+        agnostic_draw = ImageDraw.Draw(agnostic)
+
+        # NEW: binary mask (same drawing ops!)
+        agnostic_mask = Image.new("L", im.size, 0)
+        mask_draw = ImageDraw.Draw(agnostic_mask)
+
+        length_a = np.linalg.norm(pose_data[5] - pose_data[2])
+        length_b = np.linalg.norm(pose_data[11] - pose_data[8])
+        point = (pose_data[8] + pose_data[11]) / 2
+
+        pose_data = pose_data.copy()
+        pose_data[8] = point + (pose_data[8] - point) / length_b * length_a
+        pose_data[11] = point + (pose_data[11] - point) / length_b * length_a
+
+        r = int(length_a / 16) + 1
+
+        def draw(draw_obj, color):
+            for i in [8, 11]:
+                x, y = pose_data[i]
+                draw_obj.ellipse((x-r*3, y-r*6, x+r*3, y+r*6), color)
+
+            draw_obj.line([tuple(pose_data[i]) for i in [2, 8]], color, width=r*6)
+            draw_obj.line([tuple(pose_data[i]) for i in [5, 11]], color, width=r*6)
+            draw_obj.line([tuple(pose_data[i]) for i in [8, 11]], color, width=r*12)
+            draw_obj.polygon([tuple(pose_data[i]) for i in [2, 5, 11, 8]], color)
+
+            x, y = pose_data[1]
+            draw_obj.rectangle((x-r*5, y-r*9, x+r*5, y), color)
+
+            draw_obj.line([tuple(pose_data[i]) for i in [2, 5]], color, width=r*12)
+            for i in [2, 5]:
+                x, y = pose_data[i]
+                draw_obj.ellipse((x-r*5, y-r*6, x+r*5, y+r*6), color)
+
+            for i in [3, 4, 6, 7]:
+                if np.all(pose_data[i-1] == 0) or np.all(pose_data[i] == 0):
+                    continue
+                draw_obj.line([tuple(pose_data[j]) for j in [i-1, i]], color, width=r*10)
+                x, y = pose_data[i]
+                draw_obj.ellipse((x-r*5, y-r*5, x+r*5, y+r*5), color)
+
+        # SAME drawing for both
+        draw(agnostic_draw, "gray")
+        draw(mask_draw, 255)
+
+        # SAME arm restoration logic as old version
+        for parse_id, pose_ids in [(14, [5, 6, 7]), (15, [2, 3, 4])]:
+            mask_arm = Image.new('L', im.size, 'white')
+            d = ImageDraw.Draw(mask_arm)
+
+            x, y = pose_data[pose_ids[0]]
+            d.ellipse((x-r*5, y-r*6, x+r*5, y+r*6), 'black')
+
+            for i in pose_ids[1:]:
+                if np.all(pose_data[i-1] == 0) or np.all(pose_data[i] == 0):
+                    continue
+                d.line([tuple(pose_data[j]) for j in [i-1, i]], 'black', width=r*10)
+                x, y = pose_data[i]
+                if i != pose_ids[-1]:
+                    d.ellipse((x-r*5, y-r*5, x+r*5, y+r*5), 'black')
+
+            d.ellipse((x-r*4, y-r*4, x+r*4, y+r*4), 'black')
+
+            parse_arm = (np.array(mask_arm) / 255) * (parse_array == parse_id)
+            agnostic.paste(im, None, Image.fromarray(np.uint8(parse_arm * 255)))
+            mask_draw.bitmap((0, 0), Image.fromarray(np.uint8(parse_arm * 255)), fill=0)
+
+        # restore head & lower (same as old)
+        for restore in [parse_head, parse_lower]:
+            restore_mask = Image.fromarray(np.uint8(restore * 255), "L")
+            agnostic.paste(im, None, restore_mask)
+            mask_draw.bitmap((0, 0), restore_mask, fill=0)
+
+        binary_mask = (np.array(agnostic_mask) > 0).astype(np.uint8)
+        return agnostic, binary_mask
+
     
     def __getitem__(self, index):
         im_name = self.im_names[index]
@@ -227,18 +316,20 @@ class CPDatasetTest(data.Dataset):
 
         # person image
         im_pil_big = Image.open(osp.join(self.data_path, 'image', im_name))
-        im_pil = transforms.Resize(self.fine_width, interpolation=2)(im_pil_big)
+        im_pil = transforms.Resize((self.fine_height, self.fine_width), interpolation=2)(im_pil_big)
+        # print(im_pil.size)
         
         im = self.transform(im_pil)
 
         # load parsing image
         parse_name = im_name.replace('.jpg', '.png')
         im_parse_pil_big = Image.open(osp.join(self.data_path, 'image-parse-v3', parse_name))
-        im_parse_pil = transforms.Resize(self.fine_width, interpolation=0)(im_parse_pil_big)
+        im_parse_pil = transforms.Resize((self.fine_height, self.fine_width), interpolation=0)(im_parse_pil_big)
         parse = torch.from_numpy(np.array(im_parse_pil)[None]).long()
+        # print(np.array(im_parse_pil).max())
         im_parse = self.transform(im_parse_pil.convert('RGB'))
         
-        labels_CIHP = {
+        labels = {
             0:  ['background',  [0, 10]],
             1:  ['hair',        [1, 2]],
             2:  ['face',        [4, 13]],
@@ -254,7 +345,7 @@ class CPDatasetTest(data.Dataset):
             12: ['noise',       [3, 11]]
         }
 
-        labels = {
+        labels_LIP = {
             0:  ['background',  [0]],
             1:  ['hair',        [1, 2]],
             2:  ['face',        [4, 13]],
@@ -283,12 +374,55 @@ class CPDatasetTest(data.Dataset):
             for label in labels[i][1]:
                 parse_onehot[0] += parse_map[label] * i
 
+        # parse cloth & parse cloth mask
+        pcm = new_parse_map[3:4]
+        im_c = im * pcm + (1 - pcm)
+        
+        # load pose points
+        pose_name = im_name.replace('.jpg', '_rendered.png')
+        pose_map = Image.open(osp.join(self.data_path, 'openpose_img', pose_name))
+        pose_map = transforms.Resize((self.fine_height, self.fine_width), interpolation=2)(pose_map)
+        pose_map = self.transform(pose_map)  # [-1,1]
+        
+        pose_name = im_name.replace('.jpg', '_keypoints.json')
+        with open(osp.join(self.data_path, 'openpose_json', pose_name), 'r') as f:
+            pose_label = json.load(f)
+            if 'pose_keypoints_2d' in pose_label.keys():
+                pose_data = pose_label['pose_keypoints_2d']
+                pose_data = np.array(pose_data)
+            else:
+                pose_data = pose_label["people"][0]['pose_keypoints_2d']
+                pose_data = np.array(pose_data)
+                pose_data = pose_data.reshape((-1, 3))[:, :2]
+
+        
+        # load densepose
+        densepose_name = im_name.replace('image', 'image-densepose')
+        densepose_map = Image.open(osp.join(self.data_path, 'image-densepose', densepose_name))
+        densepose_map = transforms.Resize((self.fine_height, self.fine_width), interpolation=2)(densepose_map)
+        densepose_map = self.transform(densepose_map)  # [-1,1]
+        agnostic, binary_mask = self.get_agnostic(im_pil_big.resize((self.fine_width, self.fine_height)), im_parse_pil_big.resize((self.fine_width, self.fine_height)), pose_data)
+        agnostic = transforms.Resize(self.fine_width, interpolation=2)(agnostic)
+        # print(type(agnostic_0))
+        agnostic = self.transform(agnostic)
+
+
+        mask = binary_mask.astype(bool)
+
+        image_parse_agnostic_np = np.array(im_parse_pil)
+        image_parse_agnostic_np[mask] = 0   # background
+
+        # بازگشت numpy → PIL
+        image_parse_agnostic = Image.fromarray(
+            image_parse_agnostic_np.astype(np.uint8),
+            mode=im_parse_pil_big.mode  # خیلی مهم: P یا L
+        )
         # load image-parse-agnostic
-        image_parse_agnostic = Image.open(osp.join(self.data_path, 'image-parse-agnostic-v3.2', parse_name))
-        image_parse_agnostic = transforms.Resize(self.fine_width, interpolation=0)(image_parse_agnostic)
+        # image_parse_agnostic = Image.open(osp.join(self.data_path, 'image-parse-agnostic-v3.2', parse_name))
+        # image_parse_agnostic = transforms.Resize(self.fine_width, interpolation=0)(image_parse_agnostic)
         parse_agnostic = torch.from_numpy(np.array(image_parse_agnostic)[None]).long()
         image_parse_agnostic = self.transform(image_parse_agnostic.convert('RGB'))
-
+        # print(np.array(im_parse_pil).max(), image_parse_agnostic_np.max(), image_parse_agnostic.max(), parse_agnostic.max())
         parse_agnostic_map = torch.FloatTensor(20, self.fine_height, self.fine_width).zero_()
         parse_agnostic_map = parse_agnostic_map.scatter_(0, parse_agnostic, 1.0)
         new_parse_agnostic_map = torch.FloatTensor(self.semantic_nc, self.fine_height, self.fine_width).zero_()
@@ -300,35 +434,6 @@ class CPDatasetTest(data.Dataset):
         for i in range(len(labels)):
             for label in labels[i][1]:
                 parse_ag_onehot[0] += parse_agnostic_map[label] * i
-                
-
-        # parse cloth & parse cloth mask
-        pcm = new_parse_map[3:4]
-        im_c = im * pcm + (1 - pcm)
-        
-        # load pose points
-        pose_name = im_name.replace('.jpg', '_rendered.png')
-        pose_map = Image.open(osp.join(self.data_path, 'openpose_img', pose_name))
-        pose_map = transforms.Resize(self.fine_width, interpolation=2)(pose_map)
-        pose_map = self.transform(pose_map)  # [-1,1]
-        
-        pose_name = im_name.replace('.jpg', '_keypoints.json')
-        with open(osp.join(self.data_path, 'openpose_json', pose_name), 'r') as f:
-            pose_label = json.load(f)
-            pose_data = pose_label['people'][0]['pose_keypoints_2d']
-            pose_data = np.array(pose_data)
-            pose_data = pose_data.reshape((-1, 3))[:, :2]
-
-        
-        # load densepose
-        densepose_name = im_name.replace('image', 'image-densepose')
-        densepose_map = Image.open(osp.join(self.data_path, 'image-densepose', densepose_name))
-        densepose_map = transforms.Resize(self.fine_width, interpolation=2)(densepose_map)
-        densepose_map = self.transform(densepose_map)  # [-1,1]
-        agnostic = self.get_agnostic(im_pil_big, im_parse_pil_big, pose_data)
-        agnostic = transforms.Resize(self.fine_width, interpolation=2)(agnostic)
-        agnostic = self.transform(agnostic)
-        
 
 
         result = {
@@ -349,7 +454,8 @@ class CPDatasetTest(data.Dataset):
             # visualization
             'image':    im,         # for visualization
             'agnostic' : agnostic, 
-            # 'pose_data': pose_data, 
+            'agnostic_mask': binary_mask,
+            'pose_data': pose_data, 
             'parse_agnostic_onehot': parse_ag_onehot
             }
         
